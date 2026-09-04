@@ -1,0 +1,27 @@
+# 编译产物
+build/
+*.bin
+*.elf
+*.o
+*.a
+*.class
+*.pyc
+__pycache__/
+
+# IDE / 系统
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# 安卓
+android/.gradle/
+android/.idea/
+android/build/
+android/app/build/
+android/local.properties
+*.iml
+
+# 临时
+*.tmp
+*.log
