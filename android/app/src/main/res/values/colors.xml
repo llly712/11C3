@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="tianyi_blue">#66CCFF</color>
+    <color name="tianyi_blue_dark">#1E90B0</color>
+    <color name="tianyi_blue_light">#E0F4FF</color>
+    <color name="tianyi_blue_very_light">#F2FAFF</color>
+    <color name="white">#FFFFFF</color>
+    <color name="text_primary">#22303A</color>
+    <color name="text_secondary">#7A93A5</color>
+    <color name="accent_green">#3DDC97</color>
+    <color name="card_stroke">#CFE9F8</color>
+</resources>
