@@ -56,6 +56,8 @@ GPIO5 接单按键，另一端接 GND，内部上拉、按下为低；用于短�
 
 代码外链：[11C3 源码仓库](https://github.com/llly712/11C3)
 
+硬件开源：[嘉立创开源硬件 - 11C3 433信号发射板](https://oshwhub.com/lihui1/project_worlkptp?jspm=hub.cg.nr.gc&jlc_vid=E1JXXlIHR1lWA1VeT1daVABUFVAPUFFVFQdeBgVUQlkxVlNeT1RaU1dXR1ZdVjsOAxUeFF5JWA4dDxMOAgNABAsLWD4BFAwRHxQMSQcJGg%3D%3D)
+
 演示视频：B站完整视频（后续补充）
 
 ## 目录结构
