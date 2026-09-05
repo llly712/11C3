@@ -41,8 +41,6 @@ ESP32-C3 Mini 的 GPIO3 作为 RMT 输出，直接驱动 F113 模块 DATA 引脚
 
 GPIO5 接单按键，另一端接 GND，内部上拉、按下为低；用于短按/双击/长按/超长按的交互控制。可选板载 WS2812 状态灯（本设计中板子无板上灯，代码以 `#ifdef PIN_STATUS_LED` 做兼容保护）。
 
-![数据链路图](https://image.lceda.cn/oshwhub/pullImage/53044f6f1709469896a5acd4f6318503.png)
-
 上位机（用 LumaFlow）/ 手机 App →（串口 / UDP:32712 / BLE）→ ESP32-C3 协议转换层 →（433.92MHz OOK）→ 应援棒。上位机只需提供 10 通道灯光数据，空口编码（前缀、校验、槽位、相位）全部由固件完成。
 
 ## App 界面
