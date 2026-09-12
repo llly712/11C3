@@ -64,9 +64,11 @@ public class MainActivity extends AppCompatActivity {
             "天依蓝", "浅天蓝", "深海蓝", "纯白",
             "薄荷绿", "暖黄", "樱粉", "薰衣紫"
     };
+    // 注意: 棒子(D8)每通道为 4bit(0-15), 只有取值为 17 的倍数时才能原样显示。
+    // 这里色盘全部用 17 的倍数, 保证「手机上看到的颜色 == 棒子显示的颜色」。
     private static final String[] PALETTE = {
-            "#66CCFF", "#A6E3FF", "#2E9BD6", "#FFFFFF",
-            "#7BE0C8", "#FFD166", "#F08CA4", "#B28DFF"
+            "#66CCFF", "#AADDFF", "#3399DD", "#FFFFFF",
+            "#77DDCC", "#FFCC66", "#EE88AA", "#AA88FF"
     };
 
     private static final int REQ_PICK_CSV = 200;
@@ -531,6 +533,7 @@ public class MainActivity extends AppCompatActivity {
             func.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
                 @Override public void onItemSelected(AdapterView<?> p, View v, int pos, long id) {
                     channels[idx].func = pos;
+                    if (connected) sendColor();   // 切换闪频后立即下发
                 }
                 @Override public void onNothingSelected(AdapterView<?> p) {}
             });
@@ -541,6 +544,7 @@ public class MainActivity extends AppCompatActivity {
                             int c2 = Color.parseColor(PALETTE[which]);
                             channels[idx].color = c2;
                             setSwatch(swatch, c2);
+                            if (connected) sendColor();   // 选完色立即下发
                         })
                         .show();
             });
