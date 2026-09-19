@@ -1,3 +1,15 @@
+// ============================================================
+// 11C3 - ESP32-C3 Mini 洛天依应援棒 433MHz 发射器固件
+// 硬件:
+//   GPIO3  -> F113 433MHz ASK 模块 DATA (RMT OOK 输出)
+//   GPIO5  -> 按钮(另一端接 GND)
+// 功能:
+//   1) 独立播放: BLE/WiFi/串口 上传 CSV 灯光序列 -> 保存到 Flash,
+//      脱离电脑按时间轴经 433MHz 播放
+//   2) 下位机: 电脑上位机经 Serial/UDP:32712/BLE 连接,
+//      收到的 TLV STREAM 帧转发到 433MHz
+//   3) 按钮: 短按=播放/暂停  双击=下一节目  长按=亮度循环  超长按=恢复出厂
+// ============================================================
 #include <Arduino.h>
 #include <Adafruit_NeoPixel.h>
 #include "src/config.h"
@@ -24,6 +36,12 @@ bool ledReady = false;
 // ---- 433MHz 转发(来自 PC 的 STREAM 帧) ----
 static uint8_t lastFwd[STREAM_PAYLOAD_LEN];
 static size_t lastFwdLen = 0;
+// 最新帧覆盖缓冲: PC 帧只记录最新一帧, 由主循环空闲时发射, 避免堆积/越播越落后
+static uint8_t pendingFwd[STREAM_PAYLOAD_LEN];
+static volatile bool pendingFwdFlag = false;
+// 实时发送的相位轮换 (2->1->0), 避免同一相位被接收端当重复帧丢弃
+static const uint8_t kFwdPhases[3] = {2, 1, 0};
+static uint8_t fwdPhaseIdx = 0;
 
 // ---- 433 协议穷举扫描状态 ----
 static bool scanActive = false;
@@ -46,8 +64,9 @@ void forwardTlv(uint8_t cmd, const uint8_t* payload, uint8_t plen) {
   if (plen == lastFwdLen && memcmp(payload, lastFwd, plen) == 0) return;
   memcpy(lastFwd, payload, plen);
   lastFwdLen = plen;
-  // 空口发送: 转为场控 D8 帧
-  rf.sendFieldD8(payload);
+  // 只记录最新帧, 不在此处阻塞发射; 旧帧被直接覆盖丢弃 (发不出去就丢, 永远发最新的)
+  memcpy(pendingFwd, payload, plen);
+  pendingFwdFlag = true;
 }
 
 // ---- 串口文本命令(上位机上传/控制) ----
@@ -373,6 +392,14 @@ void loop() {
     uint8_t b = (uint8_t)Serial.read();
     serialParser.feed(b);
     handleSerialByte(b);
+  }
+
+  // 最新帧优先: 空闲时把最新的 PC 帧发出去 (每次1帧, 相位轮换 2/1/0)
+  // 单帧 ~130ms, 更新率可达 ~7.6 次/秒, 延迟低且尽量不吞帧
+  if (pendingFwdFlag && !rf.busy() && player.state() != Player::PLAYING) {
+    pendingFwdFlag = false;
+    rf.sendFieldD8Phase(pendingFwd, kFwdPhases[fwdPhaseIdx]);
+    fwdPhaseIdx = (uint8_t)((fwdPhaseIdx + 1) % 3);
   }
 
   player.tick();

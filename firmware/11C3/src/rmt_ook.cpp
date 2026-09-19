@@ -240,20 +240,28 @@ static void build_field_d8(const uint8_t payload20[20], uint8_t phase, uint8_t o
   out[20] = ck;
 }
 
-// 按 phase 序列 (2,1,0,2,1,0) 连发 6 个帧, 帧间低电平 ~850us
-// (对齐现场节奏: 131.1ms 帧起始间隔 - 130.25ms 帧时长)
-bool RmtOok::sendFieldD8(const uint8_t payload20[20]) {
+// 只发一个相位的场控帧 (单帧 ~130ms)
+bool RmtOok::sendFieldD8Phase(const uint8_t payload20[20], uint8_t phase) {
   if (!payload20) return false;
+  uint8_t frame[21];
+  build_field_d8(payload20, phase, frame);
+  return sendFieldFrame(frame, 21, 1, 250);
+}
+
+// 按 phase 序列 (2,1,0,2,1,0) 连发 frames 个帧 (1..6), 帧间低电平 ~850us
+// (对齐现场节奏: 131.1ms 帧起始间隔 - 130.25ms 帧时长)
+bool RmtOok::sendFieldD8(const uint8_t payload20[20], uint8_t frames) {
+  if (!payload20) return false;
+  if (frames < 1) frames = 1;
+  if (frames > 6) frames = 6;
   static const uint8_t phases[6] = {2, 1, 0, 2, 1, 0};
   bool ok = true;
-  for (int i = 0; i < 6; i++) {
-    uint8_t frame[21];
-    build_field_d8(payload20, phases[i], frame);
-    if (!sendFieldFrame(frame, 21, 1, 250)) {
+  for (uint8_t i = 0; i < frames; i++) {
+    if (!sendFieldD8Phase(payload20, phases[i])) {
       ok = false;
       break;
     }
-    if (i + 1 < 6) delayMicroseconds(850);   // 帧起始间隔约 131.1ms
+    if (i + 1 < frames) delayMicroseconds(850);   // 帧起始间隔约 131.1ms
   }
   return ok;
 }

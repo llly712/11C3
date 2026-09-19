@@ -10,6 +10,10 @@
 #define RF_MODE_DEFAULT       0      // 0=NRZ (纯位流), 1=UART (8N1 起止位)
 #define RF_INVERT_DEFAULT     false  // 电平反转 (某些 ASK 模块反相)
 
+// 实时(STREAM)控制策略: "最新帧覆盖 + 单帧发送, 相位轮换 2/1/0"。
+// 单帧约 130ms, 更新率可达 ~7.6 次/秒, 延迟低且尽量不吞帧。
+// (独立播放 player 仍按完整相位序列发送, 见 rmt_ook.cpp)
+
 // ================= 按钮逻辑 (毫秒) =================
 #define BTN_DEBOUNCE_MS    25
 #define BTN_DOUBLE_GAP     350    // 两次短按间隔

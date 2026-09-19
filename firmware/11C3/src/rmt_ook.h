@@ -26,7 +26,10 @@ public:
   bool sendFieldFrameInv(const uint8_t* data, size_t len, uint8_t repeat = 6,
                          uint32_t bitUs = 250);
   // 把 20 字节 STREAM payload(10通道×2B) 转成 21 字节场控帧, 按 phase 序列连发
-  bool sendFieldD8(const uint8_t payload20[20]);
+  // frames: 发送帧数(1..6), 默认 6; 实时控制可减小以降低单次耗时、提升同步
+  bool sendFieldD8(const uint8_t payload20[20], uint8_t frames = 6);
+  // 只发一个相位的场控帧 (用于实时控制: 每次1帧, 相位由调用方轮换 2/1/0)
+  bool sendFieldD8Phase(const uint8_t payload20[20], uint8_t phase);
   bool carrier(uint32_t durationMs);    // 诊断: 连续载波(纯高电平), 验证发射模块
   void release();                        // 释放 RMT 通道, GPIO 变回普通输出(诊断用)
   bool busy() const;
