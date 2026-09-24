@@ -4,9 +4,9 @@
 //   GPIO3  -> F113 433MHz ASK 模块 DATA (RMT OOK 输出)
 //   GPIO5  -> 按钮(另一端接 GND)
 // 功能:
-//   1) 独立播放: BLE/WiFi/串口 上传 CSV 灯光序列 -> 保存到 Flash,
+//   1) 独立播放: BLE/串口 上传 CSV 灯光序列 -> 保存到 Flash,
 //      脱离电脑按时间轴经 433MHz 播放
-//   2) 下位机: 电脑上位机经 Serial/UDP:32712/BLE 连接,
+//   2) 下位机: 电脑上位机经 Serial/BLE 连接,
 //      收到的 TLV STREAM 帧转发到 433MHz
 //   3) 按钮: 短按=播放/暂停  双击=下一节目  长按=亮度循环  超长按=恢复出厂
 // ============================================================
@@ -19,14 +19,12 @@
 #include "src/player.h"
 #include "src/button.h"
 #include "src/ble_service.h"
-#include "src/wifi_ap.h"
 
 Storage   storage;
 RmtOok    rf;
 Player    player;
 Button    button;
 BleService ble;
-WifiAp    wifi;
 
 #ifdef PIN_STATUS_LED
 Adafruit_NeoPixel led(1, PIN_STATUS_LED, NEO_GRB + NEO_KHZ800);
@@ -123,12 +121,11 @@ void handleSerialByte(uint8_t b) {
       handleSerialCommand(line);
       return;
     }
-    // 调参命令 (RF/WiFi/AP/BLE 共用同一套)
+    // 调参命令 (RF/BLE 共用同一套)
     if (line.startsWith("CFG") || line.startsWith("GETCFG") ||
         line.startsWith("RFBAUD:") || line.startsWith("RFPRE:") ||
         line.startsWith("RFMODE:") || line.startsWith("RFINV:") ||
-        line.startsWith("LOOP:") || line.startsWith("SETAP:") ||
-        line.startsWith("SETSTA:") || line.startsWith("REBOOT") ||
+        line.startsWith("LOOP:") || line.startsWith("REBOOT") ||
         line.startsWith("SCAN") || line.startsWith("STOPSCAN")) {
       handleSerialCommand(line);
       return;
@@ -310,7 +307,6 @@ void updateLed() {
   uint32_t color = 0x0000FF;   // 空闲=蓝
   if (player.state() == Player::PLAYING) color = 0x00FF00;   // 播放=绿
   else if (player.state() == Player::PAUSED) color = 0xFFFF00; // 暂停=黄
-  if (wifi.staConnected()) color = 0x00FFFF;                 // 已连路由器=青
   led.setPixelColor(0, color);
   led.show();
 #endif
@@ -341,10 +337,6 @@ void setup() {
   // 串口/上传等解析器
   serialParser.setCallback(forwardTlv);
   ble.begin(&storage, &player, &rf, forwardTlv);
-  wifi.begin(&storage, &player, forwardTlv);
-  wifi.setNotifyFn([](const char* m){ ble.notify(m); });
-  // 网页 /api/cmd 委托给 BLE/串口同一套命令实现
-  wifi.setCmdFn([](const String& c){ return ble.handleCommand(c); });
 
   button.begin(PIN_BUTTON, onButton);
 
@@ -359,7 +351,6 @@ void setup() {
                 storage.getRfBaud(), storage.getRfMode(),
                 storage.getRfInvert() ? 1 : 0, storage.getRfPreamble(),
                 storage.getBrightness());
-  Serial.printf("[wifi] AP=%s IP=%s\n", WIFI_AP_SSID_DEFAULT, wifi.apIp().c_str());
 #endif
 
   // 清理旧版内置 demo 预设 (已废弃, 不再内置生成)
@@ -403,7 +394,6 @@ void loop() {
   }
 
   player.tick();
-  wifi.update();
   ble.update();
   updateLed();
   scanTick();
@@ -412,11 +402,10 @@ void loop() {
   if (millis() - lastLog > 5000) {
     lastLog = millis();
 #ifdef FIRMWARE_LOG
-    Serial.printf("[st] %s %s bright=%u sta=%d\n",
+    Serial.printf("[st] %s %s bright=%u\n",
                   player.state() == Player::PLAYING ? "playing" :
                   player.state() == Player::PAUSED ? "paused" : "idle",
-                  player.current().c_str(), player.brightness(),
-                  wifi.staConnected() ? 1 : 0);
+                  player.current().c_str(), player.brightness());
 #endif
   }
 }

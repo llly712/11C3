@@ -31,11 +31,6 @@
 #define BLE_CHR_UPLOAD   "c3a50003-3e74-4b1e-b6f4-1a91f7080003"  // 数据写(CSV)
 #define BLE_CHR_STATUS   "c3a50004-3e74-4b1e-b6f4-1a91f7080004"  // 状态通知
 
-// ================= WiFi =================
-#define WIFI_AP_SSID_DEFAULT  "11C3"
-#define WIFI_AP_PASS_DEFAULT  "12345678"
-#define UDP_PORT              32712   // 11C3 UDP 固定端口
-
 // ================= 容量限制 =================
 #define MAX_PRESETS       16      // 最多保存的节目数
 #define MAX_CSV_UPLOAD    100000  // 单帧最大字节(流式上传不再整体缓冲)

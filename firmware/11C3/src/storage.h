@@ -21,9 +21,6 @@ public:
   uint8_t  getBrightness();  void setBrightness(uint8_t pct);   // 0-100
   bool     getLoopPlay();    void setLoopPlay(bool v);
   String   getCurrentPreset(); void setCurrentPreset(const String& name);
-  String   getApPass();      void setApPass(const String& v);
-  String   getStaSsid();     void setStaSsid(const String& v);
-  String   getStaPass();     void setStaPass(const String& v);
 
   // ---- 节目管理 ----
   String sanitizeName(const String& name);

@@ -251,16 +251,14 @@ String BleService::handleCommand(const String& cmd) {
                  ";n=" + String(n) + ";bright=" + String(_player->brightness());
     return out;
   }
-  // ---- 调参 (串口/BLE/网页共用) ----
+  // ---- 调参 (串口/BLE 共用) ----
   if (c == "CFG" || c == "GETCFG") {
     String out = "CFG:baud=" + String(_st->getRfBaud()) +
                  ";pre=" + String(_st->getRfPreamble()) +
                  ";mode=" + String(_st->getRfMode()) +
                  ";inv=" + String(_st->getRfInvert() ? 1 : 0) +
                  ";bright=" + String(_st->getBrightness()) +
-                 ";loop=" + String(_st->getLoopPlay() ? 1 : 0) +
-                 ";ssid=" + _st->getStaSsid() +
-                 ";ap=" + _st->getApPass();
+                 ";loop=" + String(_st->getLoopPlay() ? 1 : 0);
     return out;
   }
   if (c.startsWith("RFBAUD:")) {
@@ -296,23 +294,6 @@ String BleService::handleCommand(const String& cmd) {
     if (v != 0 && v != 1) return "ERR:loop (0/1)";
     _st->setLoopPlay(v == 1);
     return "OK:loop " + String(v);
-  }
-  if (c.startsWith("SETAP:")) {
-    String p = c.substring(6);
-    if (p.length() < 8 || p.length() > 32) return "ERR:pass 8-32 chars";
-    _st->setApPass(p);
-    return "OK:ap pass saved (reboot to apply)";
-  }
-  if (c.startsWith("SETSTA:")) {
-    // SETSTA:ssid;pass
-    int semi = c.indexOf(';', 7);
-    if (semi <= 7) return "ERR:format SETSTA:ssid;pass";
-    String ssid = c.substring(7, semi);
-    String pass = c.substring(semi + 1);
-    if (ssid.length() == 0 || ssid.length() > 32) return "ERR:ssid 1-32 chars";
-    _st->setStaSsid(ssid);
-    _st->setStaPass(pass);
-    return "OK:sta saved (reboot to apply)";
   }
   if (c == "REBOOT") {
     delay(100);
