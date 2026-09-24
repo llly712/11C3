@@ -19,12 +19,18 @@
 #include "src/player.h"
 #include "src/button.h"
 #include "src/ble_service.h"
+#if ENABLE_WIFI
+#include "src/wifi_ap.h"
+#endif
 
 Storage   storage;
 RmtOok    rf;
 Player    player;
 Button    button;
 BleService ble;
+#if ENABLE_WIFI
+WifiAp    wifi;
+#endif
 
 #ifdef PIN_STATUS_LED
 Adafruit_NeoPixel led(1, PIN_STATUS_LED, NEO_GRB + NEO_KHZ800);
@@ -307,6 +313,9 @@ void updateLed() {
   uint32_t color = 0x0000FF;   // 空闲=蓝
   if (player.state() == Player::PLAYING) color = 0x00FF00;   // 播放=绿
   else if (player.state() == Player::PAUSED) color = 0xFFFF00; // 暂停=黄
+#if ENABLE_WIFI
+  if (wifi.staConnected()) color = 0x00FFFF;                 // 已连路由器=青
+#endif
   led.setPixelColor(0, color);
   led.show();
 #endif
@@ -337,6 +346,12 @@ void setup() {
   // 串口/上传等解析器
   serialParser.setCallback(forwardTlv);
   ble.begin(&storage, &player, &rf, forwardTlv);
+#if ENABLE_WIFI
+  wifi.begin(&storage, &player, forwardTlv);
+  wifi.setNotifyFn([](const char* m){ ble.notify(m); });
+  // 网页 /api/cmd 委托给 BLE/串口同一套命令实现
+  wifi.setCmdFn([](const String& c){ return ble.handleCommand(c); });
+#endif
 
   button.begin(PIN_BUTTON, onButton);
 
@@ -351,6 +366,9 @@ void setup() {
                 storage.getRfBaud(), storage.getRfMode(),
                 storage.getRfInvert() ? 1 : 0, storage.getRfPreamble(),
                 storage.getBrightness());
+#if ENABLE_WIFI
+  Serial.printf("[wifi] AP=%s IP=%s\n", WIFI_AP_SSID_DEFAULT, wifi.apIp().c_str());
+#endif
 #endif
 
   // 清理旧版内置 demo 预设 (已废弃, 不再内置生成)
@@ -394,6 +412,9 @@ void loop() {
   }
 
   player.tick();
+#if ENABLE_WIFI
+  wifi.update();
+#endif
   ble.update();
   updateLed();
   scanTick();
@@ -402,10 +423,14 @@ void loop() {
   if (millis() - lastLog > 5000) {
     lastLog = millis();
 #ifdef FIRMWARE_LOG
-    Serial.printf("[st] %s %s bright=%u\n",
+    Serial.printf("[st] %s %s bright=%u",
                   player.state() == Player::PLAYING ? "playing" :
                   player.state() == Player::PAUSED ? "paused" : "idle",
                   player.current().c_str(), player.brightness());
+#if ENABLE_WIFI
+    Serial.printf(" sta=%d", wifi.staConnected() ? 1 : 0);
+#endif
+    Serial.println();
 #endif
   }
 }

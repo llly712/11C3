@@ -22,6 +22,12 @@ public:
   bool     getLoopPlay();    void setLoopPlay(bool v);
   String   getCurrentPreset(); void setCurrentPreset(const String& name);
 
+#if ENABLE_WIFI
+  String   getApPass();      void setApPass(const String& v);
+  String   getStaSsid();     void setStaSsid(const String& v);
+  String   getStaPass();     void setStaPass(const String& v);
+#endif
+
   // ---- 节目管理 ----
   String sanitizeName(const String& name);
   bool   presetExists(const String& name);

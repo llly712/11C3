@@ -31,6 +31,18 @@
 #define BLE_CHR_UPLOAD   "c3a50003-3e74-4b1e-b6f4-1a91f7080003"  // 数据写(CSV)
 #define BLE_CHR_STATUS   "c3a50004-3e74-4b1e-b6f4-1a91f7080004"  // 状态通知
 
+// ================= 功能开关 =================
+// WiFi (AP 热点 + 网页控制台 + 局域网 UDP:32712) 默认关闭, 仅用 串口 + BLE。
+// 需要时: 取消下面这行的注释即可 (删掉行首的 "// ")。
+// #define ENABLE_WIFI 1
+
+#if ENABLE_WIFI
+// ================= WiFi =================
+#define WIFI_AP_SSID_DEFAULT  "11C3"
+#define WIFI_AP_PASS_DEFAULT  "12345678"
+#define UDP_PORT              32712   // 11C3 UDP 固定端口
+#endif
+
 // ================= 容量限制 =================
 #define MAX_PRESETS       16      // 最多保存的节目数
 #define MAX_CSV_UPLOAD    100000  // 单帧最大字节(流式上传不再整体缓冲)

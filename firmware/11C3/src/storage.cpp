@@ -28,6 +28,15 @@ void Storage::setLoopPlay(bool v) { _pref.putBool("loop", v); }
 String Storage::getCurrentPreset(){ return _pref.getString("cur_pre", ""); }
 void Storage::setCurrentPreset(const String& n){ _pref.putString("cur_pre", n); }
 
+#if ENABLE_WIFI
+String Storage::getApPass()       { return _pref.getString("ap_pass", WIFI_AP_PASS_DEFAULT); }
+void Storage::setApPass(const String& v){ _pref.putString("ap_pass", v); }
+String Storage::getStaSsid()      { return _pref.getString("sta_ssid", ""); }
+void Storage::setStaSsid(const String& v){ _pref.putString("sta_ssid", v); }
+String Storage::getStaPass()      { return _pref.getString("sta_pass", ""); }
+void Storage::setStaPass(const String& v){ _pref.putString("sta_pass", v); }
+#endif
+
 String Storage::sanitizeName(const String& name) {
   String n = name;
   n.trim();

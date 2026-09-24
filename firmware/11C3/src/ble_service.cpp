@@ -259,6 +259,9 @@ String BleService::handleCommand(const String& cmd) {
                  ";inv=" + String(_st->getRfInvert() ? 1 : 0) +
                  ";bright=" + String(_st->getBrightness()) +
                  ";loop=" + String(_st->getLoopPlay() ? 1 : 0);
+#if ENABLE_WIFI
+    out += ";ssid=" + _st->getStaSsid() + ";ap=" + _st->getApPass();
+#endif
     return out;
   }
   if (c.startsWith("RFBAUD:")) {
@@ -295,6 +298,25 @@ String BleService::handleCommand(const String& cmd) {
     _st->setLoopPlay(v == 1);
     return "OK:loop " + String(v);
   }
+#if ENABLE_WIFI
+  if (c.startsWith("SETAP:")) {
+    String p = c.substring(6);
+    if (p.length() < 8 || p.length() > 32) return "ERR:pass 8-32 chars";
+    _st->setApPass(p);
+    return "OK:ap pass saved (reboot to apply)";
+  }
+  if (c.startsWith("SETSTA:")) {
+    // SETSTA:ssid;pass
+    int semi = c.indexOf(';', 7);
+    if (semi <= 7) return "ERR:format SETSTA:ssid;pass";
+    String ssid = c.substring(7, semi);
+    String pass = c.substring(semi + 1);
+    if (ssid.length() == 0 || ssid.length() > 32) return "ERR:ssid 1-32 chars";
+    _st->setStaSsid(ssid);
+    _st->setStaPass(pass);
+    return "OK:sta saved (reboot to apply)";
+  }
+#endif
   if (c == "REBOOT") {
     delay(100);
     ESP.restart();
