@@ -91,6 +91,7 @@ public class MainActivity extends AppCompatActivity {
     private boolean connected = false;
     private boolean scanning = false;
     private boolean uploading = false;
+    private int mtu = 23;
 
     private Uri csvUri = null;
     private String csvContent = "";
@@ -261,13 +262,23 @@ public class MainActivity extends AppCompatActivity {
         public void onConnectionStateChange(BluetoothGatt g, int status, int newState) {
             if (newState == BluetoothProfile.STATE_CONNECTED) {
                 if (hasPerm(Manifest.permission.BLUETOOTH_CONNECT) || Build.VERSION.SDK_INT < 31) {
-                    g.discoverServices();
+                    // 先协商 MTU, 否则 Android 默认 23 会把长命令(如 COLOR:)截断到 20 字节
+                    if (!g.requestMtu(517)) g.discoverServices();
                 }
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                 ui.post(() -> {
                     setConnected(false);
                     toast("设备已断开");
                 });
+            }
+        }
+
+        @Override
+        public void onMtuChanged(BluetoothGatt g, int newMtu, int status) {
+            mtu = newMtu;
+            log("MTU = " + newMtu);
+            if (hasPerm(Manifest.permission.BLUETOOTH_CONNECT) || Build.VERSION.SDK_INT < 31) {
+                g.discoverServices();
             }
         }
 
@@ -283,7 +294,10 @@ public class MainActivity extends AppCompatActivity {
             if (en && Build.VERSION.SDK_INT >= 21) {
                 BluetoothGattDescriptor cc = st.getDescriptor(
                         UUID.fromString("00002902-0000-1000-8000-00805f9b34fb"));
-                if (cc != null) cc.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
+                if (cc != null) {
+                    cc.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
+                    g.writeDescriptor(cc);   // 之前只 setValue 未写描述符 -> 通知从未真正开启
+                }
             }
             ui.post(() -> {
                 setConnected(true);
@@ -330,6 +344,9 @@ public class MainActivity extends AppCompatActivity {
         BluetoothGattCharacteristic ctrl = svc.getCharacteristic(CHR_CTRL);
         if (ctrl == null) return;
         byte[] data = cmd.getBytes(StandardCharsets.UTF_8);
+        if (data.length > mtu - 3) {
+            log("警告: 命令 " + data.length + "B 超过当前 MTU 上限 " + (mtu - 3) + "B，可能被截断");
+        }
         ctrl.setValue(data);
         gatt.writeCharacteristic(ctrl);
         log("→ " + cmd);
