@@ -262,8 +262,8 @@ public class MainActivity extends AppCompatActivity {
         public void onConnectionStateChange(BluetoothGatt g, int status, int newState) {
             if (newState == BluetoothProfile.STATE_CONNECTED) {
                 if (hasPerm(Manifest.permission.BLUETOOTH_CONNECT) || Build.VERSION.SDK_INT < 31) {
-                    // 先协商 MTU, 否则 Android 默认 23 会把长命令(如 COLOR:)截断到 20 字节
-                    if (!g.requestMtu(517)) g.discoverServices();
+                    // 先发现服务，保证连接不依赖 MTU 协商（部分机型先 requestMtu 会卡住连接）
+                    g.discoverServices();
                 }
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                 ui.post(() -> {
@@ -277,8 +277,12 @@ public class MainActivity extends AppCompatActivity {
         public void onMtuChanged(BluetoothGatt g, int newMtu, int status) {
             mtu = newMtu;
             log("MTU = " + newMtu);
+        }
+
+        @Override
+        public void onDescriptorWrite(BluetoothGatt g, BluetoothGattDescriptor descriptor, int status) {
             if (hasPerm(Manifest.permission.BLUETOOTH_CONNECT) || Build.VERSION.SDK_INT < 31) {
-                g.discoverServices();
+                g.requestMtu(517);
             }
         }
 
@@ -291,13 +295,18 @@ public class MainActivity extends AppCompatActivity {
             BluetoothGattCharacteristic ctrl = svc.getCharacteristic(CHR_CTRL);
             if (st == null || ctrl == null) { toast("未找到控制特征"); return; }
             boolean en = g.setCharacteristicNotification(st, true);
+            boolean notifyRequested = false;
             if (en && Build.VERSION.SDK_INT >= 21) {
                 BluetoothGattDescriptor cc = st.getDescriptor(
                         UUID.fromString("00002902-0000-1000-8000-00805f9b34fb"));
                 if (cc != null) {
                     cc.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
-                    g.writeDescriptor(cc);   // 之前只 setValue 未写描述符 -> 通知从未真正开启
+                    notifyRequested = g.writeDescriptor(cc);   // 之前只 setValue 未写描述符 -> 通知从未真正开启
                 }
+            }
+            // 描述符写完后在 onDescriptorWrite 里协商 MTU；若没发起描述符写则这里直接协商
+            if (!notifyRequested && (hasPerm(Manifest.permission.BLUETOOTH_CONNECT) || Build.VERSION.SDK_INT < 31)) {
+                g.requestMtu(517);
             }
             ui.post(() -> {
                 setConnected(true);
