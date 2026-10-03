@@ -92,6 +92,9 @@ public class MainActivity extends AppCompatActivity {
     private boolean scanning = false;
     private boolean uploading = false;
     private int mtu = 23;
+    private boolean setupDone = false;
+    private boolean mtuRequested = false;
+    private int revealCount = 0;
 
     private Uri csvUri = null;
     private String csvContent = "";
@@ -260,10 +263,12 @@ public class MainActivity extends AppCompatActivity {
     private final BluetoothGattCallback gattCallback = new BluetoothGattCallback() {
         @Override
         public void onConnectionStateChange(BluetoothGatt g, int status, int newState) {
+            log("连接状态回调 status=" + status + " newState=" + newState);
             if (newState == BluetoothProfile.STATE_CONNECTED) {
                 if (hasPerm(Manifest.permission.BLUETOOTH_CONNECT) || Build.VERSION.SDK_INT < 31) {
                     // 先发现服务，保证连接不依赖 MTU 协商（部分机型先 requestMtu 会卡住连接）
-                    g.discoverServices();
+                    boolean started = g.discoverServices();
+                    log("开始发现服务 discoverServices=" + started);
                 }
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                 ui.post(() -> {
@@ -276,37 +281,70 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void onMtuChanged(BluetoothGatt g, int newMtu, int status) {
             mtu = newMtu;
-            log("MTU = " + newMtu);
+            log("MTU 协商结果 = " + newMtu + " (status=" + status + ")");
+            // 部分机型 MTU 变更后会清空已发现的服务，这里只再发现一次，避免循环
+            if (status == BluetoothGatt.GATT_SUCCESS && revealCount < 1
+                    && (hasPerm(Manifest.permission.BLUETOOTH_CONNECT) || Build.VERSION.SDK_INT < 31)) {
+                revealCount++;
+                g.discoverServices();
+            }
         }
 
         @Override
         public void onDescriptorWrite(BluetoothGatt g, BluetoothGattDescriptor descriptor, int status) {
-            if (hasPerm(Manifest.permission.BLUETOOTH_CONNECT) || Build.VERSION.SDK_INT < 31) {
-                g.requestMtu(517);
+            log("描述符写入完成 status=" + status);
+            if (!mtuRequested && (hasPerm(Manifest.permission.BLUETOOTH_CONNECT) || Build.VERSION.SDK_INT < 31)) {
+                mtuRequested = true;
+                boolean r = g.requestMtu(517);
+                log("请求 MTU=517 -> " + r);
             }
         }
 
         @Override
         public void onServicesDiscovered(BluetoothGatt g, int status) {
-            if (status != BluetoothGatt.GATT_SUCCESS) { toast("服务发现失败"); return; }
+            log("服务发现回调 status=" + status + " 服务数=" + g.getServices().size());
+            if (status != BluetoothGatt.GATT_SUCCESS) {
+                toast("服务发现失败 code=" + status);
+                return;
+            }
             BluetoothGattService svc = g.getService(SVC_CTRL);
-            if (svc == null) { toast("未找到 11C3 控制服务"); return; }
+            if (svc == null) {
+                for (BluetoothGattService s : g.getServices()) {
+                    log("  发现服务 " + s.getUuid());
+                    for (BluetoothGattCharacteristic ch : s.getCharacteristics()) {
+                        log("    特征 " + ch.getUuid());
+                    }
+                }
+                toast("未找到 11C3 控制服务");
+                return;
+            }
             BluetoothGattCharacteristic st = svc.getCharacteristic(CHR_STATUS);
             BluetoothGattCharacteristic ctrl = svc.getCharacteristic(CHR_CTRL);
-            if (st == null || ctrl == null) { toast("未找到控制特征"); return; }
-            boolean en = g.setCharacteristicNotification(st, true);
-            boolean notifyRequested = false;
-            if (en && Build.VERSION.SDK_INT >= 21) {
-                BluetoothGattDescriptor cc = st.getDescriptor(
-                        UUID.fromString("00002902-0000-1000-8000-00805f9b34fb"));
-                if (cc != null) {
-                    cc.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
-                    notifyRequested = g.writeDescriptor(cc);   // 之前只 setValue 未写描述符 -> 通知从未真正开启
-                }
+            if (st == null || ctrl == null) {
+                log("控制服务缺少特征: ctrl=" + (ctrl != null) + " status=" + (st != null));
+                toast("未找到控制特征");
+                return;
             }
-            // 描述符写完后在 onDescriptorWrite 里协商 MTU；若没发起描述符写则这里直接协商
-            if (!notifyRequested && (hasPerm(Manifest.permission.BLUETOOTH_CONNECT) || Build.VERSION.SDK_INT < 31)) {
-                g.requestMtu(517);
+            if (!setupDone) {
+                setupDone = true;
+                boolean en = g.setCharacteristicNotification(st, true);
+                boolean notifyRequested = false;
+                if (en && Build.VERSION.SDK_INT >= 21) {
+                    BluetoothGattDescriptor cc = st.getDescriptor(
+                            UUID.fromString("00002902-0000-1000-8000-00805f9b34fb"));
+                    if (cc != null) {
+                        cc.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
+                        notifyRequested = g.writeDescriptor(cc);   // 之前只 setValue 未写描述符 -> 通知从未真正开启
+                    }
+                }
+                log("通知开启=" + en + " 描述符写=" + notifyRequested);
+                // 描述符写完后在 onDescriptorWrite 里协商 MTU；若没发起描述符写则这里直接协商
+                if (!notifyRequested && !mtuRequested
+                        && (hasPerm(Manifest.permission.BLUETOOTH_CONNECT) || Build.VERSION.SDK_INT < 31)) {
+                    mtuRequested = true;
+                    boolean r = g.requestMtu(517);
+                    log("请求 MTU=517 -> " + r);
+                }
             }
             ui.post(() -> {
                 setConnected(true);
@@ -347,18 +385,27 @@ public class MainActivity extends AppCompatActivity {
 
     @SuppressLint("MissingPermission")
     private void send(String cmd) {
-        if (gatt == null || !connected) { toast("未连接"); return; }
+        if (gatt == null || !connected) { log("取消发送(未连接): " + cmd); toast("未连接"); return; }
         BluetoothGattService svc = gatt.getService(SVC_CTRL);
-        if (svc == null) return;
+        if (svc == null) {
+            log("发送失败: 找不到控制服务, 重新发现服务…");
+            if (hasPerm(Manifest.permission.BLUETOOTH_CONNECT) || Build.VERSION.SDK_INT < 31) gatt.discoverServices();
+            return;
+        }
         BluetoothGattCharacteristic ctrl = svc.getCharacteristic(CHR_CTRL);
-        if (ctrl == null) return;
+        if (ctrl == null) { log("发送失败: 找不到控制特征"); return; }
         byte[] data = cmd.getBytes(StandardCharsets.UTF_8);
         if (data.length > mtu - 3) {
             log("警告: 命令 " + data.length + "B 超过当前 MTU 上限 " + (mtu - 3) + "B，可能被截断");
         }
         ctrl.setValue(data);
-        gatt.writeCharacteristic(ctrl);
-        log("→ " + cmd);
+        if ((ctrl.getProperties() & BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE) != 0) {
+            ctrl.setWriteType(BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE);
+        } else {
+            ctrl.setWriteType(BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT);
+        }
+        boolean ok = gatt.writeCharacteristic(ctrl);
+        log("→ " + cmd + " (write=" + ok + ", " + data.length + "B, mtu=" + mtu + ")");
     }
 
     // ---------- CSV 导入与上传 ----------
